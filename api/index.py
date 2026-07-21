@@ -10,6 +10,15 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 
 
+@app.route("/api/debug-env", methods=["GET"])
+def debug_env():
+    return jsonify({
+        "SUPABASE_URL_set": bool(SUPABASE_URL),
+        "SUPABASE_ANON_KEY_set": bool(SUPABASE_ANON_KEY),
+    })
+
+
+
 def get_public_client() -> Client:
     """Cliente Supabase sin autenticación de usuario (usa la anon key)."""
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
