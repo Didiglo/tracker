@@ -48,11 +48,11 @@ def require_auth(f):
         if not token:
             return jsonify({"error": "Falta el token de autenticación"}), 401
 
-        try:
+       try:
             client = get_public_client()
             user_response = client.auth.get_user(token)
-        except Exception:
-            return jsonify({"error": "Token inválido o expirado"}), 401
+        except Exception as e:
+            return jsonify({"error": "Token inválido o expirado", "debug": str(e)}), 401
 
         user = getattr(user_response, "user", None)
         if not user:
