@@ -1,20 +1,29 @@
-# Proyecto Final — React + Flask + Supabase
+# Rachas — Tracker de Hábitos (React + Flask + Supabase)
 
-Aplicación web con frontend en React (Vite), backend en Python (Flask, desplegado
-como funciones serverless) y Supabase como Auth + base de datos + storage.
-Incluye autenticación por email/contraseña y Google OAuth.
+Aplicación web full-stack para trackear hábitos diarios: frontend en React
+(Vite) con interfaz dinámica y juvenil, backend en Python (Flask, desplegado
+como funciones serverless) y Supabase como Auth + base de datos relacional.
+Incluye autenticación por email/contraseña (JWT) y CRUD completo sobre dos
+entidades: **hábitos** y **check-ins (registros diarios)**.
 
 ## Estructura
 
 ```
-proyecto-final/
+tracker/
 ├── api/
 │   ├── index.py          # Backend Flask (endpoints /api/...)
 │   └── requirements.txt
 ├── src/
 │   ├── pages/Login.jsx
 │   ├── pages/Dashboard.jsx
+│   ├── components/HabitCard.jsx
+│   ├── components/HabitFormModal.jsx
+│   ├── components/ConfirmDialog.jsx
 │   ├── components/ProtectedRoute.jsx
+│   ├── hooks/useHabits.js
+│   ├── services/api.js          # cliente HTTP base
+│   ├── services/habits.js       # llamadas a /api/habits y /api/logs
+│   ├── utils/streak.js          # cálculo de rachas y progreso semanal
 │   ├── AuthContext.jsx
 │   ├── supabaseClient.js
 │   ├── App.jsx
@@ -24,29 +33,27 @@ proyecto-final/
 └── supabase_setup.sql
 ```
 
+## Modelo de datos
+
+- **habits** — hábitos que el usuario quiere trackear (`name`, `emoji`,
+  `color`, `target_days_per_week`).
+- **habit_logs** — check-ins: un registro por hábito y día (`log_date`,
+  `note` opcional), con restricción `unique(habit_id, log_date)`.
+
+Ambas tablas tienen Row Level Security: cada usuario solo puede ver y
+modificar sus propios hábitos y registros (`auth.uid() = user_id`).
+
 ## 1. Crear el proyecto en Supabase
 
 1. Entra a https://supabase.com y crea un nuevo proyecto.
 2. En **Project Settings → API** copia:
    - `Project URL` → será `SUPABASE_URL` / `VITE_SUPABASE_URL`
    - `anon public key` → será `SUPABASE_ANON_KEY` / `VITE_SUPABASE_ANON_KEY`
-3. Ve a **SQL Editor** y ejecuta el contenido de `supabase_setup.sql` para crear
-   la tabla de ejemplo `items` con Row Level Security ya configurado.
+3. Ve a **SQL Editor** y ejecuta el contenido de `supabase_setup.sql` para
+   crear las tablas `habits` y `habit_logs` con Row Level Security ya
+   configurado.
 
-## 2. Habilitar autenticación con Google
-
-1. En Supabase: **Authentication → Providers → Google** → actívalo.
-2. En Google Cloud Console, crea credenciales OAuth 2.0 (tipo "Aplicación web").
-3. En **Authorized redirect URIs** agrega la URL de callback que te muestra
-   Supabase en esa misma pantalla (algo como
-   `https://TU-PROYECTO.supabase.co/auth/v1/callback`).
-4. Copia el Client ID y Client Secret de Google y pégalos en el panel de
-   Supabase, en la misma pantalla del proveedor Google.
-5. En **Authentication → URL Configuration**, agrega la URL de tu app
-   (`http://localhost:5173` en desarrollo y tu dominio de Vercel en
-   producción) a "Redirect URLs".
-
-## 3. Configurar variables de entorno
+## 2. Configurar variables de entorno
 
 **Frontend** — copia `.env.example` a `.env` y completa los valores:
 ```
@@ -55,13 +62,13 @@ VITE_SUPABASE_ANON_KEY=tu-anon-key-publica
 ```
 
 **Backend** — copia `api/.env.example` a `api/.env` (solo para desarrollo
-local; en producción estas variables se configuran en Vercel, ver paso 5):
+local; en producción estas variables se configuran en Vercel, ver paso 4):
 ```
 SUPABASE_URL=https://TU-PROYECTO.supabase.co
 SUPABASE_ANON_KEY=tu-anon-key-publica
 ```
 
-## 4. Ejecutar en local
+## 3. Ejecutar en local
 
 **Backend (Flask)** — en una terminal:
 ```bash
@@ -83,7 +90,7 @@ Abre `http://localhost:5173`. Las peticiones a `/api/...` se redirigen
 automáticamente al Flask local gracias al proxy configurado en
 `vite.config.js`.
 
-## 5. Desplegar en Vercel
+## 4. Desplegar en Vercel
 
 1. Sube este proyecto a un repositorio de GitHub.
 2. En https://vercel.com, click en **Add New → Project** e importa el
@@ -102,8 +109,7 @@ automáticamente al Flask local gracias al proxy configurado en
 5. Click en **Deploy**.
 6. Una vez desplegado, vuelve a Supabase → **Authentication → URL
    Configuration** y agrega la URL final de Vercel (por ejemplo
-   `https://tu-proyecto.vercel.app`) a "Site URL" y "Redirect URLs", para que
-   el login con Google funcione en producción.
+   `https://tu-proyecto.vercel.app`) a "Site URL" y "Redirect URLs".
 
 ## Endpoints del backend
 
@@ -111,10 +117,16 @@ automáticamente al Flask local gracias al proxy configurado en
 |---|---|---|---|
 | GET | `/api/health` | No | Verifica que el backend responde |
 | GET | `/api/profile` | Sí | Devuelve el id y email del usuario autenticado |
-| GET | `/api/items` | Sí | Lista los elementos del usuario autenticado |
-| POST | `/api/items` | Sí | Crea un elemento (`{ "title": "..." }`) para el usuario autenticado |
+| GET | `/api/habits` | Sí | Lista los hábitos del usuario autenticado |
+| POST | `/api/habits` | Sí | Crea un hábito (`name`, `emoji`, `color`, `target_days_per_week`) |
+| PUT | `/api/habits/:id` | Sí | Actualiza un hábito propio |
+| DELETE | `/api/habits/:id` | Sí | Elimina un hábito propio (y sus registros) |
+| GET | `/api/logs?days=30` | Sí | Lista los check-ins del usuario en los últimos N días |
+| POST | `/api/habits/:id/logs` | Sí | Crea un check-in para ese hábito (`log_date`, `note` opcional) |
+| PUT | `/api/logs/:id` | Sí | Actualiza la nota de un check-in propio |
+| DELETE | `/api/logs/:id` | Sí | Elimina (desmarca) un check-in propio |
 
 La protección se hace validando el JWT (header `Authorization: Bearer <token>`)
-contra Supabase Auth en cada request; las consultas a la tabla `items` se
-hacen con ese mismo token para que las políticas de Row Level Security
+contra Supabase Auth en cada request; las consultas a `habits` y `habit_logs`
+se hacen con ese mismo token para que las políticas de Row Level Security
 filtren automáticamente por usuario.

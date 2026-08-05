@@ -38,19 +38,16 @@ export default function Login() {
     navigate("/dashboard");
   }
 
-  async function handleGoogleLogin() {
-    setMessage("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + "/dashboard" },
-    });
-    if (error) setMessage(error.message);
-  }
-
   return (
     <div className="auth-wrapper">
       <div className="auth-card">
-        <h1>{mode === "signin" ? "Iniciar sesión" : "Crear cuenta"}</h1>
+        <p className="auth-brand">🔥 Rachas</p>
+        <h1>{mode === "signin" ? "¡Qué bueno verte!" : "Empecemos tu racha"}</h1>
+        <p className="auth-subtitle">
+          {mode === "signin"
+            ? "Entra para seguir con tus hábitos"
+            : "Crea una cuenta y arranca hoy mismo"}
+        </p>
 
         <form onSubmit={handleSubmit}>
           <label>
@@ -83,12 +80,6 @@ export default function Login() {
               : "Registrarme"}
           </button>
         </form>
-
-        <div className="divider">o</div>
-
-        <button className="google-btn" onClick={handleGoogleLogin} type="button">
-          Continuar con Google
-        </button>
 
         <p className="switch-mode">
           {mode === "signin" ? "¿No tienes cuenta? " : "¿Ya tienes cuenta? "}
